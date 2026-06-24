@@ -1,0 +1,131 @@
+# TreasuryAICore - Docker Compose configuration
+# All services are defined here for local development.
+version: '3.8'
+
+services:
+  # --- Databases & Brokers ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: treasury-postgres
+    environment:
+      POSTGRES_USER: treasury
+      POSTGRES_PASSWORD: treasury123
+      POSTGRES_DB: treasury
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U treasury" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  redis:
+    image: redis:7-alpine
+    container_name: treasury-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: treasury-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: treasury
+      RABBITMQ_DEFAULT_PASS: treasury123
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # Management UI
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: treasury-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: treasury-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: "broker"          # <-- обязательная переменная
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_HEAP_OPTS: "-Xmx256M -Xms128M"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    restart: unless-stopped
+
+  # --- Microservices ---
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: treasury-auth
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/treasury
+      SPRING_DATASOURCE_USERNAME: treasury
+      SPRING_DATASOURCE_PASSWORD: treasury123
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: treasury
+      SPRING_RABBITMQ_PASSWORD: treasury123
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: treasury-payment
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=treasury;Username=treasury;Password=treasury123
+      Kafka__BootstrapServers: kafka:9092
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: treasury-notification
+    ports:
+      - "8082:8080"
+    depends_on:
+      redis:
+        condition: service_started
+    environment:
+      REDIS_URL: redis://redis:6379
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  kafka_data:
