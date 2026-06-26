@@ -1,6 +1,6 @@
 # 🤖 TreasuryAICore
 
-[![CI/CD](https://github.com/DevSpecOps/TreasuryAICore/actions/workflows/ci.yml/badge.svg)](https://github.com/DevSpecOps/TreasuryAICore/actions)
+[![CI/CD](https://github.com/DevSpecOps/TreasuryAICore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DevSpecOps/TreasuryAICore/actions)
 [![GitHub release](https://img.shields.io/github/release/DevSpecOps/TreasuryAICore.svg)](https://github.com/DevSpecOps/TreasuryAICore/releases)
 ![Java](https://img.shields.io/badge/Java-21-blue.svg)
 ![.NET](https://img.shields.io/badge/.NET-8-purple.svg)
