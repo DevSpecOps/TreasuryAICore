@@ -1,6 +1,5 @@
 # TreasuryAICore - Docker Compose configuration
 # All services are defined here for local development.
-version: '3.8'
 
 services:
   # --- Databases & Brokers ---
